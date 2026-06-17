@@ -20,17 +20,19 @@ import {
   Loader2,
   Cpu,
   ShieldOff,
+  Scissors,
 } from 'lucide-react'
 import { useAppStore, type ChatMessage, type LlmProvider } from '@/store/app-store'
 import { markdownToDocHtml, newId } from '@/lib/markdown'
-import type { DocEditorHandle } from './doc-editor'
+import type { DocEditorHandle, DocSelectionInfo } from './doc-editor'
 import { toast } from 'sonner'
 
 interface ChatPanelProps {
   editorRef: React.MutableRefObject<DocEditorHandle | null>
+  selection: DocSelectionInfo
 }
 
-export function ChatPanel({ editorRef }: ChatPanelProps) {
+export function ChatPanel({ editorRef, selection }: ChatPanelProps) {
   const {
     messages,
     addMessage,
@@ -78,8 +80,11 @@ export function ChatPanel({ editorRef }: ChatPanelProps) {
       return
     }
 
-    // Capture doc context (trimmed)
+    // Capture doc context (trimmed) and any active selection at send time
     const docText = editorRef.current?.getPlainText().trim().slice(0, 4000) ?? ''
+    const selText = editorRef.current?.getSelectionText() ?? ''
+    const isEditingSelection = selText.trim().length > 0
+
     const userMsg: ChatMessage = {
       id: newId('u'),
       role: 'user',
@@ -101,24 +106,43 @@ export function ChatPanel({ editorRef }: ChatPanelProps) {
     const controller = new AbortController()
     abortRef.current = controller
 
-    // Compose messages for the API: system + doc context + history (last 10) + user
+    // Compose messages for the API.
+    // Two modes:
+    //  (A) Editing selection: instruct the model to rewrite ONLY the selected
+    //      text and return ONLY the replacement.
+    //  (B) Default: write/expand the document, with doc context as background.
     const history = [...messages, userMsg]
       .filter((m) => m.role !== 'system' && !m.error)
       .slice(-10)
       .map((m) => ({ role: m.role, content: m.content }))
 
-    const docContext =
-      docText.length > 0
-        ? `Current document content (for context, do NOT echo this back):\n"""\n${docText}\n"""`
-        : ''
+    let apiMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+    if (isEditingSelection) {
+      const editSystemPrompt = `You are a writing assistant embedded in a document editor.
+The user has SELECTED a passage in the document and wants you to edit/rewrite/improve it.
+Return ONLY the replacement text in Markdown — no preamble, no explanation, no quoting the original.
+Use the same general structure (headings, lists) as the selection unless the user asks otherwise.
+Tone: tight, useful, no filler.`
 
-    const apiMessages = [
-      { role: 'system' as const, content: systemPrompt },
-      ...(docContext
-        ? [{ role: 'system' as const, content: docContext }]
-        : []),
-      ...history,
-    ]
+      const selectionBlock = `Selected text to edit (replace this entirely with your reply):\n"""\n${selText.slice(0, 6000)}\n"""`
+      apiMessages = [
+        { role: 'system', content: editSystemPrompt },
+        { role: 'system', content: selectionBlock },
+        ...history,
+      ]
+    } else {
+      const docContext =
+        docText.length > 0
+          ? `Current document content (for context, do NOT echo this back):\n"""\n${docText}\n"""`
+          : ''
+      apiMessages = [
+        { role: 'system', content: systemPrompt },
+        ...(docContext
+          ? [{ role: 'system' as const, content: docContext }]
+          : []),
+        ...history,
+      ]
+    }
 
     try {
       const res = await fetch('/api/chat', {
@@ -191,9 +215,15 @@ export function ChatPanel({ editorRef }: ChatPanelProps) {
 
       updateMessage(aiMsg.id, { streaming: false })
 
-      // Auto-insert into doc if enabled
-      if (autoInsert && accumulated.trim()) {
-        insertIntoDoc(aiMsg.id, accumulated)
+      // Route the completed response:
+      //  - If user had a selection when they hit Send → REPLACE the selection.
+      //  - Else if auto-insert is on → APPEND to the doc.
+      if (accumulated.trim()) {
+        if (isEditingSelection) {
+          replaceSelectionInDoc(aiMsg.id, accumulated)
+        } else if (autoInsert) {
+          insertIntoDoc(aiMsg.id, accumulated)
+        }
       }
     } catch (err) {
       if ((err as Error).name === 'AbortError') {
@@ -220,6 +250,26 @@ export function ChatPanel({ editorRef }: ChatPanelProps) {
     editorRef.current?.insertAiHtml(html)
     updateMessage(msgId, { inserted: true })
     toast.success('Inserted into document')
+  }
+
+  const replaceSelectionInDoc = (msgId: string, content?: string) => {
+    const msg = messages.find((m) => m.id === msgId)
+    const text = content ?? msg?.content
+    if (!text || !text.trim()) return
+    const html = markdownToDocHtml(text)
+    if (!html) return
+    const ok = editorRef.current?.replaceSelectionWithHtml(html) ?? false
+    if (ok) {
+      updateMessage(msgId, { inserted: true })
+      toast.success('Replaced selection', {
+        description: 'The highlighted text was swapped with the AI response.',
+      })
+    } else {
+      // Selection was lost (e.g. user clicked elsewhere). Fall back to append.
+      editorRef.current?.insertAiHtml(html)
+      updateMessage(msgId, { inserted: true })
+      toast.info('Selection was lost — appended to end instead')
+    }
   }
 
   const stop = () => {
@@ -292,6 +342,22 @@ export function ChatPanel({ editorRef }: ChatPanelProps) {
         </div>
       </div>
 
+      {/* Editing-selection banner */}
+      {selection.hasSelection && (
+        <div className="flex items-start gap-2 border-b bg-amber-500/5 px-3 py-2">
+          <Scissors className="mt-0.5 size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] font-medium text-amber-700 dark:text-amber-300">
+              Editing selection · AI will replace it
+            </div>
+            <div className="truncate text-[10px] text-muted-foreground">
+              {selection.length} chars:&nbsp;
+              <span className="italic">“{selection.text}{selection.length > 120 ? '…' : ''}”</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         <div className="space-y-3 p-3">
@@ -340,13 +406,15 @@ export function ChatPanel({ editorRef }: ChatPanelProps) {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={
-              providerReady
-                ? 'Ask the assistant to write, edit, or expand the doc…'
-                : 'Open Settings to connect a provider first…'
+              !providerReady
+                ? 'Open Settings to connect a provider first…'
+                : selection.hasSelection
+                  ? `Tell the AI how to edit the ${selection.length}-char selection…`
+                  : 'Ask the assistant to write, edit, or expand the doc…'
             }
             rows={3}
             disabled={!providerReady && !streaming}
-            className="min-h-[72px] resize-none pr-24 text-sm"
+            className="min-h-[72px] resize-none pr-28 text-sm"
           />
           <div className="absolute bottom-2 right-2 flex items-center gap-1">
             {streaming ? (
@@ -361,7 +429,7 @@ export function ChatPanel({ editorRef }: ChatPanelProps) {
                 className="h-7 gap-1 text-xs"
               >
                 <Send className="size-3" />
-                Send
+                {selection.hasSelection ? 'Replace' : 'Send'}
               </Button>
             )}
           </div>

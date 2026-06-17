@@ -16,20 +16,28 @@ import {
 } from '@/components/ui/sheet'
 import { MessageSquare, Moon, Sun, FileText, RotateCcw } from 'lucide-react'
 import { useTheme } from 'next-themes'
-import { DocEditor, type DocEditorHandle } from '@/components/docmate/doc-editor'
+import { DocEditor, type DocEditorHandle, type DocSelectionInfo } from '@/components/docmate/doc-editor'
 import { ChatPanel } from '@/components/docmate/chat-panel'
 import { SettingsDialog } from '@/components/docmate/settings-dialog'
+import { ExportMenu } from '@/components/docmate/export-menu'
 import { useAppStore } from '@/store/app-store'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { toast } from 'sonner'
+
+const EMPTY_SELECTION: DocSelectionInfo = { hasSelection: false, text: '', length: 0 }
 
 export default function Home() {
   const editorRef = useRef<DocEditorHandle | null>(null)
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [mobileChatOpen, setMobileChatOpen] = useState(false)
+  const [selection, setSelection] = useState<DocSelectionInfo>(EMPTY_SELECTION)
   const resetDoc = useAppStore((s) => s.resetDoc)
   const isMobile = useIsMobile()
+
+  const handleSelectionChange = (info: DocSelectionInfo) => {
+    setSelection(info)
+  }
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -86,6 +94,7 @@ export default function Home() {
             </Button>
           )}
           <SettingsDialog />
+          <ExportMenu />
           {/* Mobile chat trigger */}
           {isMobile && (
             <Sheet open={mobileChatOpen} onOpenChange={setMobileChatOpen}>
@@ -107,7 +116,7 @@ export default function Home() {
                   <SheetTitle>Chat</SheetTitle>
                 </SheetHeader>
                 <div className="flex-1 min-h-0">
-                  <ChatPanel editorRef={editorRef} />
+                  <ChatPanel editorRef={editorRef} selection={selection} />
                 </div>
               </SheetContent>
             </Sheet>
@@ -119,16 +128,22 @@ export default function Home() {
       <main className="min-h-0 flex-1">
         {isMobile ? (
           // Mobile: doc only (chat is in the Sheet above)
-          <DocEditor editorRef={editorRef} />
+          <DocEditor
+            editorRef={editorRef}
+            onSelectionChange={handleSelectionChange}
+          />
         ) : (
           // Desktop: resizable split
           <ResizablePanelGroup direction="horizontal">
             <ResizablePanel defaultSize={68} minSize={40}>
-              <DocEditor editorRef={editorRef} />
+              <DocEditor
+                editorRef={editorRef}
+                onSelectionChange={handleSelectionChange}
+              />
             </ResizablePanel>
             <ResizableHandle withHandle />
             <ResizablePanel defaultSize={32} minSize={22} maxSize={55}>
-              <ChatPanel editorRef={editorRef} />
+              <ChatPanel editorRef={editorRef} selection={selection} />
             </ResizablePanel>
           </ResizablePanelGroup>
         )}

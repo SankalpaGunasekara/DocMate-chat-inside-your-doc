@@ -28,13 +28,30 @@ import { sanitizeDocHtml, wrapAiInsert } from '@/lib/markdown'
 interface DocEditorProps {
   /** imperative ref handle for parent (chat panel) to call */
   editorRef?: React.MutableRefObject<DocEditorHandle | null>
+  /** Called whenever the in-doc selection changes (text + range present flag). */
+  onSelectionChange?: (info: DocSelectionInfo) => void
+}
+
+export interface DocSelectionInfo {
+  /** Whether there's a non-empty selection inside the editor */
+  hasSelection: boolean
+  /** The plain-text content of the selection (truncated for display) */
+  text: string
+  /** Approximate length of the selected text */
+  length: number
 }
 
 export interface DocEditorHandle {
   /** Insert HTML at end of doc, wrapped as an AI insert */
   insertAiHtml: (html: string) => void
+  /** Replace the current doc selection with the given HTML (wrapped as AI insert). Returns true if a selection was replaced. */
+  replaceSelectionWithHtml: (html: string) => boolean
   /** Get the plain text of the doc (for context to LLM) */
   getPlainText: () => string
+  /** Get the plain text of the current in-doc selection (or '' if none). */
+  getSelectionText: () => string
+  /** Get the HTML of the current in-doc selection (or '' if none). */
+  getSelectionHtml: () => string
   /** Focus the editor */
   focus: () => void
 }
@@ -47,13 +64,77 @@ function exec(cmd: string, value?: string) {
   }
 }
 
-export function DocEditor({ editorRef }: DocEditorProps) {
+export function DocEditor({ editorRef, onSelectionChange }: DocEditorProps) {
   const editableRef = useRef<HTMLDivElement>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
   const docHtml = useAppStore((s) => s.docHtml)
   const docTitle = useAppStore((s) => s.docTitle)
   const setDocHtml = useAppStore((s) => s.setDocHtml)
   const setDocTitle = useAppStore((s) => s.setDocTitle)
+  // Keep latest onSelectionChange without re-running the listener effect
+  const onSelChangeRef = useRef(onSelectionChange)
+  useEffect(() => {
+    onSelChangeRef.current = onSelectionChange
+  }, [onSelectionChange])
+
+  // Track the last non-collapsed selection range inside our editor, so that
+  // we can still replace it after the user clicks into the chat input (which
+  // collapses the live window.Selection).
+  const savedRangeRef = useRef<Range | null>(null)
+
+  /** Notify parent of current selection state */
+  const notifySelection = useCallback(() => {
+    const cb = onSelChangeRef.current
+    if (!cb) return
+    const el = editableRef.current
+    if (!el) {
+      cb({ hasSelection: false, text: '', length: 0 })
+      return
+    }
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+      // Don't clear the saved range here — user might have just clicked into
+      // the chat input. We keep the last real selection around so the chat
+      // panel can still report it via the `selection` prop until they make a
+      // new selection or the replacement happens.
+      // BUT: we DO want to notify that there's no live selection right now,
+      // so the chat panel can hide the badge when the user truly deselects.
+      // Compromise: if the new selection is INSIDE our editor (just collapsed
+      // caret), keep the badge up using the saved range.
+      // If the selection moved OUT of our editor entirely (e.g. focused the
+      // chat input), also keep the badge up — the saved range is still valid.
+      // The badge is only cleared when an actual replacement happens (which
+      // calls notifySelection explicitly with an empty state).
+      return
+    }
+    const range = sel.getRangeAt(0)
+    if (!el.contains(range.commonAncestorContainer)) {
+      return
+    }
+    const text = sel.toString()
+    if (text.length === 0) return
+    // Save a clone of this range so we can use it later
+    savedRangeRef.current = range.cloneRange()
+    cb({
+      hasSelection: true,
+      text: text.slice(0, 120),
+      length: text.length,
+    })
+  }, [])
+
+  /** Force-clear the saved range and notify parent (called after a replacement) */
+  const clearSavedSelection = useCallback(() => {
+    savedRangeRef.current = null
+    const cb = onSelChangeRef.current
+    if (cb) cb({ hasSelection: false, text: '', length: 0 })
+  }, [])
+
+  // Listen for selection changes globally; only fire callback when inside us
+  useEffect(() => {
+    const handler = () => notifySelection()
+    document.addEventListener('selectionchange', handler)
+    return () => document.removeEventListener('selectionchange', handler)
+  }, [notifySelection])
 
   // Initial load: set innerHTML from store AFTER zustand has hydrated from
   // localStorage. The store's default `docHtml` is '' on first render, so we
@@ -118,13 +199,96 @@ export function DocEditor({ editorRef }: DocEditorProps) {
         sel?.removeAllRanges()
         sel?.addRange(range)
       },
+      replaceSelectionWithHtml: (html: string): boolean => {
+        const el = editableRef.current
+        if (!el) return false
+        // Try the live selection first, fall back to the saved range
+        // (covers the case where the user clicked into the chat input and
+        // collapsed the live selection).
+        let range: Range | null = null
+        const sel = window.getSelection()
+        if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+          const liveRange = sel.getRangeAt(0)
+          if (el.contains(liveRange.commonAncestorContainer)) {
+            range = liveRange
+          }
+        }
+        if (!range) {
+          range = savedRangeRef.current
+        }
+        if (!range || !el.contains(range.commonAncestorContainer)) return false
+        const safe = sanitizeDocHtml(html)
+        const wrapped = wrapAiInsert(safe)
+        // Delete the selected content and insert the wrapped HTML at the
+        // collapsed caret position.
+        range.deleteContents()
+        const tpl = document.createElement('template')
+        tpl.innerHTML = wrapped
+        const fragment = tpl.content.cloneNode(true) as DocumentFragment
+        // Insert the fragment at the caret
+        const lastNode = fragment.lastChild
+        range.insertNode(fragment)
+        // Collapse selection to right after the inserted content
+        if (lastNode && sel) {
+          const newRange = document.createRange()
+          newRange.setStartAfter(lastNode)
+          newRange.collapse(true)
+          sel.removeAllRanges()
+          sel.addRange(newRange)
+        }
+        // Clear the saved range so subsequent sends don't reuse it
+        savedRangeRef.current = null
+        persist()
+        el.focus()
+        // Notify that selection is now empty
+        clearSavedSelection()
+        return true
+      },
       getPlainText: () => {
         const el = editableRef.current
         return el ? el.innerText : ''
       },
+      getSelectionText: () => {
+        const el = editableRef.current
+        if (!el) return ''
+        // Try live selection first
+        const sel = window.getSelection()
+        if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+          const liveRange = sel.getRangeAt(0)
+          if (el.contains(liveRange.commonAncestorContainer)) {
+            return sel.toString()
+          }
+        }
+        // Fall back to saved range
+        if (savedRangeRef.current) {
+          const div = document.createElement('div')
+          div.appendChild(savedRangeRef.current.cloneContents())
+          return div.innerText
+        }
+        return ''
+      },
+      getSelectionHtml: () => {
+        const el = editableRef.current
+        if (!el) return ''
+        const sel = window.getSelection()
+        if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+          const liveRange = sel.getRangeAt(0)
+          if (el.contains(liveRange.commonAncestorContainer)) {
+            const div = document.createElement('div')
+            div.appendChild(liveRange.cloneContents())
+            return div.innerHTML
+          }
+        }
+        if (savedRangeRef.current) {
+          const div = document.createElement('div')
+          div.appendChild(savedRangeRef.current.cloneContents())
+          return div.innerHTML
+        }
+        return ''
+      },
       focus: () => editableRef.current?.focus(),
     }
-  }, [editorRef, persist])
+  }, [editorRef, persist, clearSavedSelection])
 
   // Auto-grow title textarea
   useEffect(() => {
