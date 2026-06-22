@@ -12,85 +12,8 @@ const turndown = new TurndownService({
   strongDelimiter: '**',
 })
 
-// Don't escape underscores in code etc.
 turndown.remove('style')
 turndown.remove('script')
-
-/** Build a full standalone HTML document string for export. */
-function buildStandaloneHtml(opts: {
-  title: string
-  bodyHtml: string
-  styles?: DocStyles
-}): string {
-  const { title, bodyHtml, styles } = opts
-  const fontFamily =
-    styles?.fontFamily ??
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-  const fontSize = styles?.fontSize ?? '16px'
-  const lineHeight = styles?.lineHeight ?? '1.7'
-  const color = styles?.color ?? '#1a1a1a'
-  const maxWidth = styles?.maxWidth ?? '820px'
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<title>${escapeHtml(title)}</title>
-<style>
-  * { box-sizing: border-box; }
-  body {
-    font-family: ${fontFamily};
-    font-size: ${fontSize};
-    line-height: ${lineHeight};
-    color: ${color};
-    margin: 0;
-    padding: 2.5rem 1.5rem;
-    background: #fff;
-  }
-  .doc-container { max-width: ${maxWidth}; margin: 0 auto; }
-  h1 { font-size: 2rem; margin: 1.5rem 0 0.75rem; }
-  h2 { font-size: 1.5rem; margin: 1.25rem 0 0.5rem; }
-  h3 { font-size: 1.25rem; margin: 1rem 0 0.5rem; }
-  p { margin: 0 0 0.75rem; }
-  ul, ol { margin: 0.5rem 0 0.75rem 1.5rem; }
-  li { margin: 0.25rem 0; }
-  blockquote {
-    border-left: 3px solid #ccc;
-    padding: 0.25rem 1rem;
-    margin: 0.75rem 0;
-    color: #555;
-    font-style: italic;
-  }
-  code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.9em;
-    background: #f4f4f4;
-    padding: 0.1em 0.35em;
-    border-radius: 0.25rem;
-  }
-  pre {
-    background: #f4f4f4;
-    padding: 0.85rem 1rem;
-    border-radius: 0.5rem;
-    overflow-x: auto;
-  }
-  pre code { background: transparent; padding: 0; }
-  table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; }
-  th, td { border: 1px solid #ccc; padding: 0.4rem 0.65rem; text-align: left; }
-  th { background: #f4f4f4; font-weight: 600; }
-  hr { border: none; border-top: 1px solid #ccc; margin: 1.25rem 0; }
-  .docmate-ai-insert { border-left: 2px solid #e0e0e0; padding-left: 0.75rem; margin: 0.5rem 0 1rem; }
-  .docmate-ai-insert::before { display: none; }
-</style>
-</head>
-<body>
-<div class="doc-container">
-<h1>${escapeHtml(title)}</h1>
-${bodyHtml}
-</div>
-</body>
-</html>`
-}
 
 function escapeHtml(s: string): string {
   return s
@@ -109,7 +32,6 @@ function triggerDownload(blob: Blob, filename: string) {
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
-  // Give the browser a tick to start the download before revoking
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
@@ -119,21 +41,289 @@ function safeFilename(title: string, ext: string): string {
   return `${clean}.${ext}`
 }
 
-/**
- * Export as Word .doc (HTML-flavoured). Word and most office suites open
- * this format natively — the file is HTML with an MS Office namespace and
- * a .doc extension, which Word treats as a native document. This avoids
- * any server-side dependency and works entirely in the browser.
- *
- * If you want true .docx (OOXML zip), swap this for a server-side approach
- * using the `docx` npm package.
- */
-export function exportAsDocx(opts: {
+/** Build a standalone HTML document string for export. */
+function buildStandaloneHtml(opts: {
   title: string
   bodyHtml: string
   styles?: DocStyles
+}): string {
+  const { title, bodyHtml, styles } = opts
+  const fontFamily =
+    styles?.fontFamily ??
+    "Calibri, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+  const fontSize = styles?.fontSize ?? '11pt'
+  const lineHeight = styles?.lineHeight ?? '1.5'
+  const color = styles?.color ?? '#1a1a1a'
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>${escapeHtml(title)}</title>
+<style>
+  @page { size: A4; margin: 1in; }
+  body {
+    font-family: ${fontFamily};
+    font-size: ${fontSize};
+    line-height: ${lineHeight};
+    color: ${color};
+    margin: 0;
+    padding: 1in;
+    background: #fff;
+  }
+  h1 { font-size: 22pt; font-weight: 700; margin: 18pt 0 6pt; }
+  h2 { font-size: 16pt; font-weight: 700; margin: 14pt 0 4pt; }
+  h3 { font-size: 13pt; font-weight: 700; margin: 12pt 0 3pt; }
+  p { margin: 0 0 8pt; }
+  ul, ol { margin: 4pt 0 8pt 24pt; }
+  li { margin: 2pt 0; }
+  blockquote { border-left: 3pt solid #999; padding: 2pt 10pt; margin: 8pt 0; color: #555; font-style: italic; }
+  code { font-family: 'Courier New', monospace; font-size: 10pt; background: #f0f0f0; padding: 1pt 3pt; }
+  pre { background: #f0f0f0; padding: 8pt 10pt; margin: 8pt 0; font-family: 'Courier New', monospace; font-size: 10pt; }
+  pre code { background: transparent; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 8pt 0; }
+  th, td { border: 1pt solid #999; padding: 4pt 6pt; text-align: left; }
+  th { background: #f0f0f0; font-weight: bold; }
+  hr { border: none; border-top: 1pt solid #999; margin: 12pt 0; page-break-after: always; }
+  img { max-width: 100%; }
+  .docmate-ai-insert { border-left: 2pt solid #ddd; padding-left: 8pt; margin: 4pt 0 10pt; }
+</style>
+</head>
+<body>
+<h1>${escapeHtml(title)}</h1>
+${bodyHtml}
+</body>
+</html>`
+}
+
+/**
+ * Export as true .docx using the `docx` package.
+ * Parses the editor HTML and converts each element to docx Paragraphs/Tables.
+ */
+export async function exportAsDocx(opts: {
+  title: string
+  bodyHtml: string
+}): Promise<void> {
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType,
+    Table, TableRow, TableCell, WidthType, BorderStyle, ImageRun,
+    PageBreak } = await import('docx')
+
+  // Parse the HTML body
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(opts.bodyHtml, 'text/html')
+  const body = doc.body
+
+  const paragraphs: InstanceType<typeof Paragraph>[] = []
+  const tables: InstanceType<typeof Table>[] = []
+
+  // Helper: convert inline HTML to TextRun[]
+  function inlineToRuns(el: Node): InstanceType<typeof TextRun>[] {
+    const runs: InstanceType<typeof TextRun>[] = []
+    el.childNodes.forEach((child) => {
+      if (child.nodeType === Node.TEXT_NODE) {
+        const text = child.textContent || ''
+        if (text) runs.push(new TextRun({ text }))
+      } else if (child.nodeType === Node.ELEMENT_NODE) {
+        const e = child as HTMLElement
+        const tagName = e.tagName.toLowerCase()
+        const text = e.textContent || ''
+        if (tagName === 'strong' || tagName === 'b') {
+          runs.push(new TextRun({ text, bold: true }))
+        } else if (tagName === 'em' || tagName === 'i') {
+          runs.push(new TextRun({ text, italics: true }))
+        } else if (tagName === 'u') {
+          runs.push(new TextRun({ text, underline: {} }))
+        } else if (tagName === 's' || tagName === 'strike') {
+          runs.push(new TextRun({ text, strike: true }))
+        } else if (tagName === 'code') {
+          runs.push(new TextRun({ text, font: 'Courier New' }))
+        } else if (tagName === 'sub') {
+          runs.push(new TextRun({ text, subScript: true }))
+        } else if (tagName === 'sup') {
+          runs.push(new TextRun({ text, superScript: true }))
+        } else if (tagName === 'br') {
+          runs.push(new TextRun({ break: 1 }))
+        } else if (tagName === 'a') {
+          runs.push(new TextRun({ text, style: 'Hyperlink' }))
+        } else if (tagName === 'mark') {
+          const color = e.getAttribute('data-color') || e.style.backgroundColor
+          runs.push(new TextRun({ text, highlight: 'yellow' }))
+        } else {
+          // Unknown inline — recurse
+          runs.push(...inlineToRuns(e))
+        }
+      }
+    })
+    return runs
+  }
+
+  // Helper: convert alignment style to docx AlignmentType
+  function getAlignment(el: HTMLElement): (typeof AlignmentType)[keyof typeof AlignmentType] | undefined {
+    const align = el.style.textAlign || el.getAttribute('data-text-align')
+    if (align === 'center') return AlignmentType.CENTER
+    if (align === 'right') return AlignmentType.RIGHT
+    if (align === 'justify') return AlignmentType.JUSTIFIED
+    return AlignmentType.LEFT
+  }
+
+  // Walk top-level block elements
+  body.childNodes.forEach((node) => {
+    if (node.nodeType !== Node.ELEMENT_NODE) return
+    const el = node as HTMLElement
+    const tag = el.tagName.toLowerCase()
+
+    if (tag === 'h1') {
+      paragraphs.push(new Paragraph({
+        children: inlineToRuns(el),
+        heading: HeadingLevel.HEADING_1,
+        alignment: getAlignment(el),
+      }))
+    } else if (tag === 'h2') {
+      paragraphs.push(new Paragraph({
+        children: inlineToRuns(el),
+        heading: HeadingLevel.HEADING_2,
+        alignment: getAlignment(el),
+      }))
+    } else if (tag === 'h3') {
+      paragraphs.push(new Paragraph({
+        children: inlineToRuns(el),
+        heading: HeadingLevel.HEADING_3,
+        alignment: getAlignment(el),
+      }))
+    } else if (tag === 'p') {
+      const runs = inlineToRuns(el)
+      if (runs.length > 0) {
+        paragraphs.push(new Paragraph({
+          children: runs,
+          alignment: getAlignment(el),
+        }))
+      } else {
+        paragraphs.push(new Paragraph({ children: [] }))
+      }
+    } else if (tag === 'ul' || tag === 'ol') {
+      el.querySelectorAll(':scope > li').forEach((li, i) => {
+        paragraphs.push(new Paragraph({
+          children: inlineToRuns(li),
+          bullet: tag === 'ul' ? { level: 0 } : undefined,
+          numbering: tag === 'ol' ? { reference: 'default-numbering', level: 0 } : undefined,
+        }))
+      })
+    } else if (tag === 'blockquote') {
+      paragraphs.push(new Paragraph({
+        children: inlineToRuns(el),
+        indent: { left: 720 },
+        spacing: { before: 120, after: 120 },
+      }))
+    } else if (tag === 'pre') {
+      const code = el.textContent || ''
+      code.split('\n').forEach((line) => {
+        paragraphs.push(new Paragraph({
+          children: [new TextRun({ text: line, font: 'Courier New' })],
+          spacing: { after: 0 },
+        }))
+      })
+    } else if (tag === 'hr') {
+      // Page break
+      paragraphs.push(new Paragraph({
+        children: [new PageBreak()],
+      }))
+    } else if (tag === 'table') {
+      const rows: InstanceType<typeof TableRow>[] = []
+      el.querySelectorAll('tr').forEach((tr) => {
+        const cells: InstanceType<typeof TableCell>[] = []
+        tr.querySelectorAll('th, td').forEach((cell) => {
+          const isHeader = cell.tagName.toLowerCase() === 'th'
+          cells.push(new TableCell({
+            children: [new Paragraph({
+              children: inlineToRuns(cell),
+              alignment: getAlignment(cell as HTMLElement),
+            })],
+            shading: isHeader ? { fill: 'F0F0F0' } : undefined,
+          }))
+        })
+        rows.push(new TableRow({ children: cells }))
+      })
+      if (rows.length > 0) {
+        tables.push(new Table({
+          rows,
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          borders: {
+            top: { style: BorderStyle.SINGLE, size: 1 },
+            bottom: { style: BorderStyle.SINGLE, size: 1 },
+            left: { style: BorderStyle.SINGLE, size: 1 },
+            right: { style: BorderStyle.SINGLE, size: 1 },
+            insideHorizontal: { style: BorderStyle.SINGLE, size: 1 },
+            insideVertical: { style: BorderStyle.SINGLE, size: 1 },
+          },
+        }))
+      }
+    } else if (tag === 'img') {
+      const src = el.getAttribute('src') || ''
+      if (src.startsWith('data:image/')) {
+        // Decode base64 to binary
+        const base64 = src.split(',')[1]
+        const binary = atob(base64)
+        const bytes = new Uint8Array(binary.length)
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+        const type = src.match(/data:(image\/\w+);/)?.[1] || 'image/png'
+        paragraphs.push(new Paragraph({
+          children: [new ImageRun({
+            data: bytes,
+            transformation: { width: 500, height: 300 },
+            type: type as 'png' | 'jpg' | 'gif' | 'bmp' | 'svg',
+          })],
+        }))
+      }
+    } else if (tag === 'div' && el.classList.contains('docmate-ai-insert')) {
+      // Recurse into AI-insert blocks — just treat as content
+      el.childNodes.forEach((child) => {
+        if (child.nodeType === Node.ELEMENT_NODE) {
+          // Re-process as if top-level
+          body.appendChild(child.cloneNode(true))
+        }
+      })
+    } else {
+      // Unknown block — try to convert
+      const runs = inlineToRuns(el)
+      if (runs.length > 0) {
+        paragraphs.push(new Paragraph({ children: runs }))
+      }
+    }
+  })
+
+  const document = new Document({
+    numbering: {
+      config: [{
+        reference: 'default-numbering',
+        levels: [{ level: 0, format: 'decimal', text: '%1.', alignment: AlignmentType.START }],
+      }],
+    },
+    sections: [{
+      properties: {
+        page: {
+          margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+        },
+      },
+      children: [
+        new Paragraph({
+          children: [new TextRun({ text: opts.title, bold: true, size: 44 })],
+          spacing: { after: 240 },
+        }),
+        ...paragraphs,
+        ...tables,
+      ],
+    }],
+  })
+
+  const blob = await Packer.toBlob(document)
+  triggerDownload(blob, safeFilename(opts.title, 'docx'))
+}
+
+/** Export as Word .doc (HTML-flavoured, for older Word versions). */
+export function exportAsDoc(opts: {
+  title: string
+  bodyHtml: string
 }): void {
-  // Strip the outer .doc-container wrapper so Word sees clean content
   const inner = `<h1>${escapeHtml(opts.title)}</h1>${opts.bodyHtml || ''}`
   const html = `<!DOCTYPE html>
 <html xmlns:o="urn:schemas-microsoft-com:office:office"
@@ -166,7 +356,6 @@ th, td { border: 1pt solid #999; padding: 4pt 6pt; text-align: left; }
 th { background: #f0f0f0; font-weight: bold; }
 hr { border: none; border-top: 1pt solid #999; margin: 12pt 0; }
 .docmate-ai-insert { border-left: 2pt solid #ddd; padding-left: 8pt; margin: 4pt 0 10pt; }
-.docmate-ai-insert::before { display: none; }
 </style>
 </head>
 <body>
@@ -190,7 +379,7 @@ export function exportAsHtml(opts: {
   triggerDownload(blob, safeFilename(opts.title, 'html'))
 }
 
-/** Export as Markdown (.md) — converts doc HTML → MD via turndown. */
+/** Export as Markdown (.md). */
 export function exportAsMarkdown(opts: {
   title: string
   bodyHtml: string
@@ -210,11 +399,7 @@ export function exportAsText(opts: { title: string; bodyText: string }): void {
   triggerDownload(blob, safeFilename(opts.title, 'txt'))
 }
 
-/**
- * Export as PDF via the browser's print dialog.
- * Opens a fresh window with a print-styled HTML doc and triggers print.
- * User picks "Save as PDF" as the destination.
- */
+/** Export as PDF via the browser's print dialog. */
 export function exportAsPdf(opts: {
   title: string
   bodyHtml: string
@@ -229,14 +414,25 @@ export function exportAsPdf(opts: {
   win.document.open()
   win.document.write(html)
   win.document.close()
-  // Give the new doc a moment to lay out before printing
   win.focus()
   setTimeout(() => {
     win.print()
   }, 400)
 }
 
-/** Reverse direction: parse markdown into doc HTML (used for .md import). */
+/**
+ * Import a .docx file and convert it to HTML using mammoth.
+ * Returns the HTML string (to be loaded into the editor) + the document title.
+ */
+export async function importFromDocx(file: File): Promise<{ html: string; title: string }> {
+  const mammoth = await import('mammoth')
+  const arrayBuffer = await file.arrayBuffer()
+  const result = await mammoth.convertToHtml({ arrayBuffer })
+  const title = file.name.replace(/\.docx?$/i, '')
+  return { html: result.value, title }
+}
+
+/** Reverse direction: parse markdown into doc HTML. */
 export function markdownToHtml(md: string): string {
   return marked.parse(md, { async: false }) as string
 }

@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/sheet'
 import { MessageSquare, Moon, Sun, RotateCcw } from 'lucide-react'
 import { useTheme } from 'next-themes'
-import { DocEditor, type DocEditorHandle, type DocSelectionInfo } from '@/components/docmate/doc-editor'
+import { WysiwygEditor, type WysiwygEditorHandle, type WysiwygSelectionInfo } from '@/components/docmate/wysiwyg-editor'
 import { ChatPanel, type PendingRewrite } from '@/components/docmate/chat-panel'
 import { SettingsDialog } from '@/components/docmate/settings-dialog'
 import { ExportMenu } from '@/components/docmate/export-menu'
@@ -26,16 +26,16 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { getPreset, type StylePresetId } from '@/lib/style-presets'
 import { toast } from 'sonner'
 
-const EMPTY_SELECTION: DocSelectionInfo = { hasSelection: false, text: '', length: 0 }
+const EMPTY_SELECTION: WysiwygSelectionInfo = { hasSelection: false, text: '', length: 0 }
 
 export default function Home() {
-  const editorRef = useRef<DocEditorHandle | null>(null)
+  const editorRef = useRef<WysiwygEditorHandle | null>(null)
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [mobileChatOpen, setMobileChatOpen] = useState(false)
   // Live selection state — tracked silently for the editor ref's saved-range
   // fallback. The banner does NOT show on this; it shows on `pendingEdit`.
-  const [selection, setSelection] = useState<DocSelectionInfo>(EMPTY_SELECTION)
+  const [selection, setSelection] = useState<WysiwygSelectionInfo>(EMPTY_SELECTION)
   // pendingEdit — true only after the user explicitly invokes "Send to edit"
   // or "Rewrite as…". Gates banner visibility + edit-mode in send().
   const [pendingEdit, setPendingEdit] = useState(false)
@@ -45,7 +45,7 @@ export default function Home() {
   const resetDoc = useAppStore((s) => s.resetDoc)
   const isMobile = useIsMobile()
 
-  const handleSelectionChange = (info: DocSelectionInfo) => {
+  const handleSelectionChange = (info: WysiwygSelectionInfo) => {
     setSelection(info)
   }
 
@@ -163,10 +163,11 @@ export default function Home() {
                 )
               ) {
                 resetDoc()
+                // Clear the TipTap editor — find the ProseMirror element
                 const el = document.querySelector(
-                  '.docmate-prose',
+                  '.docmate-wysiwyg-prose',
                 ) as HTMLElement | null
-                if (el) el.innerHTML = ''
+                if (el) el.innerHTML = '<p></p>'
                 toast.info('Document reset')
               }
             }}
@@ -232,8 +233,8 @@ export default function Home() {
 
       <main className="min-h-0 flex-1">
         {isMobile ? (
-          <DocEditor
-            editorRef={editorRef}
+          <WysiwygEditor
+            ref={editorRef}
             onSelectionChange={handleSelectionChange}
             onSendToEdit={handleSendToEdit}
             onRewriteAs={handleRewriteAs}
@@ -241,8 +242,8 @@ export default function Home() {
         ) : (
           <ResizablePanelGroup direction="horizontal">
             <ResizablePanel defaultSize={68} minSize={40}>
-              <DocEditor
-                editorRef={editorRef}
+              <WysiwygEditor
+                ref={editorRef}
                 onSelectionChange={handleSelectionChange}
                 onSendToEdit={handleSendToEdit}
                 onRewriteAs={handleRewriteAs}

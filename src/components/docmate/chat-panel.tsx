@@ -26,7 +26,7 @@ import {
 import { useAppStore, type ChatMessage, type LlmProvider } from '@/store/app-store'
 import { markdownToDocHtml, newId } from '@/lib/markdown'
 import { getPreset } from '@/lib/style-presets'
-import type { DocEditorHandle, DocSelectionInfo } from './doc-editor'
+import type { WysiwygEditorHandle, WysiwygSelectionInfo } from './wysiwyg-editor'
 import { StylePresetSelect } from './style-preset-select'
 import { toast } from 'sonner'
 
@@ -36,9 +36,9 @@ export interface PendingRewrite {
 }
 
 interface ChatPanelProps {
-  editorRef: React.MutableRefObject<DocEditorHandle | null>
+  editorRef: React.MutableRefObject<WysiwygEditorHandle | null>
   /** Live selection info — tracked silently, NOT used for banner display */
-  selection: DocSelectionInfo
+  selection: WysiwygSelectionInfo
   /** True only after the user explicitly invokes "Send to edit" or "Rewrite as…" */
   pendingEdit: boolean
   /** When set, ChatPanel auto-sends a rewrite with the given instruction */
