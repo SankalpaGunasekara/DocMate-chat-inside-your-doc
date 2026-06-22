@@ -20,6 +20,7 @@ import { DocEditor, type DocEditorHandle, type DocSelectionInfo } from '@/compon
 import { ChatPanel, type PendingRewrite } from '@/components/docmate/chat-panel'
 import { SettingsDialog } from '@/components/docmate/settings-dialog'
 import { ExportMenu } from '@/components/docmate/export-menu'
+import { HelpDialog } from '@/components/docmate/help-dialog'
 import { useAppStore } from '@/store/app-store'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { getPreset, type StylePresetId } from '@/lib/style-presets'
@@ -191,6 +192,7 @@ export default function Home() {
             </Button>
           )}
           <SettingsDialog />
+          <HelpDialog />
           <ExportMenu />
           {isMobile && (
             <Sheet open={mobileChatOpen} onOpenChange={setMobileChatOpen}>
