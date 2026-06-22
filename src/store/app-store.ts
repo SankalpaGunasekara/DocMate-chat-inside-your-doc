@@ -2,6 +2,7 @@
 
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import type { StylePresetId } from '@/lib/style-presets'
 
 export type LlmProvider = 'openrouter' | 'nims'
 
@@ -38,6 +39,7 @@ interface AppState {
   messages: ChatMessage[]
   systemPrompt: string
   autoInsert: boolean
+  stylePreset: StylePresetId
 
   // Actions
   setActiveProvider: (p: LlmProvider) => void
@@ -48,6 +50,7 @@ interface AppState {
   setDocHtml: (h: string) => void
   setSystemPrompt: (s: string) => void
   setAutoInsert: (v: boolean) => void
+  setStylePreset: (p: StylePresetId) => void
   addMessage: (m: ChatMessage) => void
   updateMessage: (id: string, patch: Partial<ChatMessage>) => void
   clearMessages: () => void
@@ -86,6 +89,7 @@ export const useAppStore = create<AppState>()(
       messages: [],
       systemPrompt: DEFAULT_SYSTEM_PROMPT,
       autoInsert: true,
+      stylePreset: 'default',
 
       setActiveProvider: (p) => set({ activeProvider: p }),
       setOpenRouter: (c) =>
@@ -96,6 +100,7 @@ export const useAppStore = create<AppState>()(
       setDocHtml: (h) => set({ docHtml: h }),
       setSystemPrompt: (sp) => set({ systemPrompt: sp }),
       setAutoInsert: (v) => set({ autoInsert: v }),
+      setStylePreset: (p) => set({ stylePreset: p }),
       addMessage: (m) => set((s) => ({ messages: [...s.messages, m] })),
       updateMessage: (id, patch) =>
         set((s) => ({
@@ -125,6 +130,7 @@ export const useAppStore = create<AppState>()(
         docHtml: s.docHtml,
         systemPrompt: s.systemPrompt,
         autoInsert: s.autoInsert,
+        stylePreset: s.stylePreset,
         // Don't persist messages to keep conversations fresh per session
       }),
     },

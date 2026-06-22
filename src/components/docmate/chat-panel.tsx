@@ -24,7 +24,9 @@ import {
 } from 'lucide-react'
 import { useAppStore, type ChatMessage, type LlmProvider } from '@/store/app-store'
 import { markdownToDocHtml, newId } from '@/lib/markdown'
+import { getPreset } from '@/lib/style-presets'
 import type { DocEditorHandle, DocSelectionInfo } from './doc-editor'
+import { StylePresetSelect } from './style-preset-select'
 import { toast } from 'sonner'
 
 interface ChatPanelProps {
@@ -45,6 +47,7 @@ export function ChatPanel({ editorRef, selection }: ChatPanelProps) {
     devMode,
     systemPrompt,
     autoInsert,
+    stylePreset,
   } = useAppStore()
 
   const [input, setInput] = useState('')
@@ -111,6 +114,12 @@ export function ChatPanel({ editorRef, selection }: ChatPanelProps) {
     //  (A) Editing selection: instruct the model to rewrite ONLY the selected
     //      text and return ONLY the replacement.
     //  (B) Default: write/expand the document, with doc context as background.
+    // Style preset is merged into both modes — it steers voice/register, not structure.
+    const preset = getPreset(stylePreset)
+    const styleSuffix = preset.prompt
+      ? `\n\n--- Style: ${preset.label} ---\n${preset.prompt}`
+      : ''
+
     const history = [...messages, userMsg]
       .filter((m) => m.role !== 'system' && !m.error)
       .slice(-10)
@@ -122,9 +131,13 @@ export function ChatPanel({ editorRef, selection }: ChatPanelProps) {
 The user has SELECTED a passage in the document and wants you to edit/rewrite/improve it.
 Return ONLY the replacement text in Markdown — no preamble, no explanation, no quoting the original.
 Use the same general structure (headings, lists) as the selection unless the user asks otherwise.
-Tone: tight, useful, no filler.`
+Tone: tight, useful, no filler.
 
-      const selectionBlock = `Selected text to edit (replace this entirely with your reply):\n"""\n${selText.slice(0, 6000)}\n"""`
+DELETE INTENT: If the user asks to delete, remove, or cut the selection ("delete this", "remove it", "cut this"),
+return the single word [DELETE] on its own line. The editor will remove the selection entirely.
+EMPTY INTENT: If the user's instruction doesn't make sense for the selection, return the original text unchanged.${styleSuffix}`
+
+      const selectionBlock = `Selected text to edit (replace this entirely with your reply, or return [DELETE] to remove it):\n"""\n${selText.slice(0, 6000)}\n"""`
       apiMessages = [
         { role: 'system', content: editSystemPrompt },
         { role: 'system', content: selectionBlock },
@@ -135,8 +148,9 @@ Tone: tight, useful, no filler.`
         docText.length > 0
           ? `Current document content (for context, do NOT echo this back):\n"""\n${docText}\n"""`
           : ''
+      const basePrompt = systemPrompt + styleSuffix
       apiMessages = [
-        { role: 'system', content: systemPrompt },
+        { role: 'system', content: basePrompt },
         ...(docContext
           ? [{ role: 'system' as const, content: docContext }]
           : []),
@@ -255,7 +269,24 @@ Tone: tight, useful, no filler.`
   const replaceSelectionInDoc = (msgId: string, content?: string) => {
     const msg = messages.find((m) => m.id === msgId)
     const text = content ?? msg?.content
-    if (!text || !text.trim()) return
+    if (text === undefined || text === null) return
+
+    // DELETE intent — AI returned the [DELETE] marker; remove the selection entirely.
+    const trimmed = text.trim()
+    if (trimmed === '[DELETE]' || trimmed === 'DELETE') {
+      const ok = editorRef.current?.replaceSelectionWithHtml('') ?? false
+      if (ok) {
+        updateMessage(msgId, { inserted: true, content: '_[selection deleted]_' })
+        toast.success('Deleted selection', {
+          description: 'The highlighted text was removed from the document.',
+        })
+      } else {
+        toast.info('Selection was lost — nothing to delete')
+      }
+      return
+    }
+
+    if (!trimmed) return
     const html = markdownToDocHtml(text)
     if (!html) return
     const ok = editorRef.current?.replaceSelectionWithHtml(html) ?? false
@@ -317,34 +348,38 @@ Tone: tight, useful, no filler.`
       </div>
 
       {/*
-        Hallmark · provider switcher
-        Compact mono-styled select, model shown as mono caption beside it.
+        Hallmark · provider + style row
+        Compact mono-styled selects side by side. Provider on the left,
+        writing style on the right. Model name shown as mono caption below.
       */}
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-        <Select
-          value={activeProvider}
-          onValueChange={(v) => setActiveProvider(v as LlmProvider)}
-        >
-          <SelectTrigger className="h-7 rounded-md border-border bg-background font-mono text-[11px] uppercase tracking-[0.04em]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="openrouter">
-              <div className="flex items-center gap-2">
-                <Cpu className="size-3.5" />
-                <span>OpenRouter</span>
-              </div>
-            </SelectItem>
-            {devMode && (
-              <SelectItem value="nims">
+      <div className="space-y-1.5 border-b border-border px-3 py-2">
+        <div className="flex items-center gap-1.5">
+          <Select
+            value={activeProvider}
+            onValueChange={(v) => setActiveProvider(v as LlmProvider)}
+          >
+            <SelectTrigger className="h-7 flex-1 rounded-md border-border bg-background font-mono text-[11px] uppercase tracking-[0.04em]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="openrouter">
                 <div className="flex items-center gap-2">
-                  <ShieldOff className="size-3.5" />
-                  <span>NIMS</span>
+                  <Cpu className="size-3.5" />
+                  <span>OpenRouter</span>
                 </div>
               </SelectItem>
-            )}
-          </SelectContent>
-        </Select>
+              {devMode && (
+                <SelectItem value="nims">
+                  <div className="flex items-center gap-2">
+                    <ShieldOff className="size-3.5" />
+                    <span>NIMS</span>
+                  </div>
+                </SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+          <StylePresetSelect />
+        </div>
         <div className="truncate font-mono text-[10px] text-muted-foreground">
           {activeConfig.model || 'no model set'}
         </div>
@@ -449,7 +484,10 @@ Tone: tight, useful, no filler.`
         </div>
         <div className="mt-1.5 flex items-center justify-between font-mono text-[9px] uppercase tracking-[0.06em] text-muted-foreground">
           <span>↵ send · ⇧↵ newline</span>
-          <span>auto-insert {autoInsert ? 'on' : 'off'}</span>
+          <span className="flex items-center gap-2">
+            <span>style · {getPreset(stylePreset).label.toLowerCase()}</span>
+            <span>auto-insert {autoInsert ? 'on' : 'off'}</span>
+          </span>
         </div>
       </div>
     </div>

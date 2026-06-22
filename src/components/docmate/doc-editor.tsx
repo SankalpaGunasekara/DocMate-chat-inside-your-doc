@@ -18,18 +18,40 @@ import {
   AlignRight,
   AlignJustify,
   Eraser,
+  Scissors,
+  ClipboardCopy,
+  ClipboardPaste,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+} from '@/components/ui/context-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAppStore } from '@/store/app-store'
 import { sanitizeDocHtml, wrapAiInsert } from '@/lib/markdown'
+import { STYLE_PRESETS } from '@/lib/style-presets'
+import { toast } from 'sonner'
 
 interface DocEditorProps {
   /** imperative ref handle for parent (chat panel) to call */
   editorRef?: React.MutableRefObject<DocEditorHandle | null>
   /** Called whenever the in-doc selection changes (text + range present flag). */
   onSelectionChange?: (info: DocSelectionInfo) => void
+  /**
+   * Called when the user picks "Send to edit" from the right-click context
+   * menu. The parent (page) should focus the chat input + ensure the
+   * selection banner is showing. The selection itself stays in the doc —
+   * the chat panel reads it via editorRef.getSelectionText() at send time.
+   */
+  onSendToEdit?: () => void
 }
 
 export interface DocSelectionInfo {
@@ -64,13 +86,16 @@ function exec(cmd: string, value?: string) {
   }
 }
 
-export function DocEditor({ editorRef, onSelectionChange }: DocEditorProps) {
+export function DocEditor({ editorRef, onSelectionChange, onSendToEdit }: DocEditorProps) {
   const editableRef = useRef<HTMLDivElement>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
   const docHtml = useAppStore((s) => s.docHtml)
   const docTitle = useAppStore((s) => s.docTitle)
   const setDocHtml = useAppStore((s) => s.setDocHtml)
   const setDocTitle = useAppStore((s) => s.setDocTitle)
+  const setStylePreset = useAppStore((s) => s.setStylePreset)
+  // Live selection state — used to enable/disable context-menu items
+  const [hasLiveSelection, setHasLiveSelection] = useState(false)
   // Keep latest onSelectionChange without re-running the listener effect
   const onSelChangeRef = useRef(onSelectionChange)
   useEffect(() => {
@@ -85,41 +110,40 @@ export function DocEditor({ editorRef, onSelectionChange }: DocEditorProps) {
   /** Notify parent of current selection state */
   const notifySelection = useCallback(() => {
     const cb = onSelChangeRef.current
-    if (!cb) return
     const el = editableRef.current
     if (!el) {
-      cb({ hasSelection: false, text: '', length: 0 })
+      setHasLiveSelection(false)
       return
     }
     const sel = window.getSelection()
     if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
-      // Don't clear the saved range here — user might have just clicked into
-      // the chat input. We keep the last real selection around so the chat
-      // panel can still report it via the `selection` prop until they make a
-      // new selection or the replacement happens.
-      // BUT: we DO want to notify that there's no live selection right now,
-      // so the chat panel can hide the badge when the user truly deselects.
-      // Compromise: if the new selection is INSIDE our editor (just collapsed
-      // caret), keep the badge up using the saved range.
-      // If the selection moved OUT of our editor entirely (e.g. focused the
-      // chat input), also keep the badge up — the saved range is still valid.
-      // The badge is only cleared when an actual replacement happens (which
-      // calls notifySelection explicitly with an empty state).
+      // No live selection. Don't clear the saved range here — user might have
+      // just clicked into the chat input. The saved range stays so the chat
+      // panel can still report the selection via the `selection` prop until
+      // a replacement happens or the user makes a new selection.
+      setHasLiveSelection(false)
       return
     }
     const range = sel.getRangeAt(0)
     if (!el.contains(range.commonAncestorContainer)) {
+      setHasLiveSelection(false)
       return
     }
     const text = sel.toString()
-    if (text.length === 0) return
+    if (text.length === 0) {
+      setHasLiveSelection(false)
+      return
+    }
+    setHasLiveSelection(true)
     // Save a clone of this range so we can use it later
     savedRangeRef.current = range.cloneRange()
-    cb({
-      hasSelection: true,
-      text: text.slice(0, 120),
-      length: text.length,
-    })
+    if (cb) {
+      cb({
+        hasSelection: true,
+        text: text.slice(0, 120),
+        length: text.length,
+      })
+    }
   }, [])
 
   /** Force-clear the saved range and notify parent (called after a replacement) */
@@ -365,37 +389,148 @@ export function DocEditor({ editorRef, onSelectionChange }: DocEditorProps) {
         Hallmark · document surface
         Off-page feel: the doc sits in a slightly elevated paper-2 background
         with hairline border, max-width 720px (~65ch measure), generous padding.
+        Wrapped in a ContextMenu: right-click on selected text → "Send to edit"
+        loads the selection into the chat panel for AI rewriting.
       */}
-      <div
-        data-doc-scroller
-        className="docmate-scroll flex-1 overflow-y-auto"
-        style={{ scrollBehavior: 'smooth', background: 'var(--color-paper)' }}
-      >
-        <div className="mx-auto max-w-[720px] px-6 py-10 sm:px-10 sm:py-14">
-          {/* Title — Space Grotesk 600, tight tracking */}
-          <textarea
-            ref={titleRef}
-            value={docTitle}
-            onChange={(e) => setDocTitle(e.target.value)}
-            placeholder="Untitled document"
-            rows={1}
-            className="w-full resize-none border-none bg-transparent font-display text-3xl font-semibold tracking-[-0.025em] text-foreground outline-none placeholder:text-muted-foreground/50 sm:text-4xl"
-            style={{ fontFamily: 'var(--font-display), ui-sans-serif, system-ui, sans-serif' }}
-          />
-          <div className="mb-8 mt-3 h-px bg-border" />
-
-          {/* Editable doc body */}
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
           <div
-            ref={editableRef}
-            contentEditable
-            suppressContentEditableWarning
-            onInput={handleInput}
-            onBlur={persist}
-            className="docmate-prose min-h-[60vh] w-full outline-none"
-            data-placeholder="Start typing your document, or ask the assistant on the right to write content for you…"
-          />
-        </div>
-      </div>
+            data-doc-scroller
+            className="docmate-scroll flex-1 overflow-y-auto"
+            style={{ scrollBehavior: 'smooth', background: 'var(--color-paper)' }}
+          >
+            <div className="mx-auto max-w-[720px] px-6 py-10 sm:px-10 sm:py-14">
+              {/* Title — Space Grotesk 600, tight tracking */}
+              <textarea
+                ref={titleRef}
+                value={docTitle}
+                onChange={(e) => setDocTitle(e.target.value)}
+                placeholder="Untitled document"
+                rows={1}
+                className="w-full resize-none border-none bg-transparent font-display text-3xl font-semibold tracking-[-0.025em] text-foreground outline-none placeholder:text-muted-foreground/50 sm:text-4xl"
+                style={{ fontFamily: 'var(--font-display), ui-sans-serif, system-ui, sans-serif' }}
+              />
+              <div className="mb-8 mt-3 h-px bg-border" />
+
+              {/* Editable doc body */}
+              <div
+                ref={editableRef}
+                contentEditable
+                suppressContentEditableWarning
+                onInput={handleInput}
+                onBlur={persist}
+                className="docmate-prose min-h-[60vh] w-full outline-none"
+                data-placeholder="Start typing your document, or ask the assistant on the right to write content for you…"
+              />
+            </div>
+          </div>
+        </ContextMenuTrigger>
+
+        <ContextMenuContent className="w-56 rounded-md border-border bg-popover p-1">
+          {/*
+            Primary action — "Send to edit". Only enabled when there's a live
+            selection inside the doc. Clicking it calls onSendToEdit() which
+            focuses the chat input + ensures the selection banner is showing.
+            The selection stays in the doc; the chat panel reads it at send time.
+          */}
+          <ContextMenuItem
+            disabled={!hasLiveSelection}
+            onSelect={() => {
+              onSendToEdit?.()
+            }}
+            className="gap-2 rounded-sm px-2 py-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-foreground focus:bg-accent focus:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Scissors className="size-3.5 text-accent" />
+            Send to edit
+          </ContextMenuItem>
+
+          {/*
+            "Rewrite as →" submenu — picks a style preset AND triggers send-to-edit
+            in one action. The user right-clicks a selection, picks "Rewrite as
+            Academic", and the chat panel opens with Academic preset loaded +
+            selection ready. They then type their instruction or just hit Send
+            to get a default rewrite in that style.
+          */}
+          <ContextMenuSub>
+            <ContextMenuSubTrigger
+              disabled={!hasLiveSelection}
+              className="gap-2 rounded-sm px-2 py-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-foreground focus:bg-accent focus:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-40 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
+            >
+              <Eraser className="size-3.5 text-accent" />
+              Rewrite as…
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="w-52 rounded-md border-border bg-popover p-1">
+              {STYLE_PRESETS.map((p) => (
+                <ContextMenuItem
+                  key={p.id}
+                  onSelect={() => {
+                    setStylePreset(p.id)
+                    onSendToEdit?.()
+                    toast.success(`Style set to ${p.label}`, {
+                      description: p.hint,
+                    })
+                  }}
+                  className="flex flex-col items-start gap-0.5 rounded-sm px-2 py-1.5 focus:bg-accent focus:text-accent-foreground"
+                >
+                  <span className="font-mono text-[11px] uppercase tracking-[0.04em] text-foreground">
+                    {p.label}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {p.hint}
+                  </span>
+                </ContextMenuItem>
+              ))}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+
+          <ContextMenuSeparator className="my-1 bg-border" />
+
+          {/*
+            Standard edit actions — we replace the native context menu, so we
+            provide Cut/Copy/Paste/Select-all here. They use document.execCommand
+            which is deprecated but still works in contentEditable.
+          */}
+          <ContextMenuItem
+            onSelect={() => exec('cut')}
+            className="gap-2 rounded-sm px-2 py-1.5 text-[12px] text-foreground focus:bg-accent focus:text-accent-foreground"
+          >
+            <Scissors className="size-3.5" />
+            Cut
+            <span className="ml-auto font-mono text-[10px] text-muted-foreground">⌘X</span>
+          </ContextMenuItem>
+          <ContextMenuItem
+            onSelect={() => exec('copy')}
+            className="gap-2 rounded-sm px-2 py-1.5 text-[12px] text-foreground focus:bg-accent focus:text-accent-foreground"
+          >
+            <ClipboardCopy className="size-3.5" />
+            Copy
+            <span className="ml-auto font-mono text-[10px] text-muted-foreground">⌘C</span>
+          </ContextMenuItem>
+          <ContextMenuItem
+            onSelect={() => exec('paste')}
+            className="gap-2 rounded-sm px-2 py-1.5 text-[12px] text-foreground focus:bg-accent focus:text-accent-foreground"
+          >
+            <ClipboardPaste className="size-3.5" />
+            Paste
+            <span className="ml-auto font-mono text-[10px] text-muted-foreground">⌘V</span>
+          </ContextMenuItem>
+          <ContextMenuSeparator className="my-1 bg-border" />
+          <ContextMenuItem
+            onSelect={() => {
+              editableRef.current?.focus()
+              const range = document.createRange()
+              range.selectNodeContents(editableRef.current!)
+              const sel = window.getSelection()
+              sel?.removeAllRanges()
+              sel?.addRange(range)
+            }}
+            className="gap-2 rounded-sm px-2 py-1.5 text-[12px] text-foreground focus:bg-accent focus:text-accent-foreground"
+          >
+            Select all
+            <span className="ml-auto font-mono text-[10px] text-muted-foreground">⌘A</span>
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
     </div>
   )
 }

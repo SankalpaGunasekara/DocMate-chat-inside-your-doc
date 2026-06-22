@@ -39,6 +39,33 @@ export default function Home() {
     setSelection(info)
   }
 
+  /**
+   * Called when the user picks "Send to edit" from the doc's right-click menu.
+   * Finds the chat textarea and focuses it. The selection itself stays in the
+   * doc — the chat panel reads it at send time. On mobile, this also opens the
+   * chat Sheet so the user can see the input.
+   */
+  const handleSendToEdit = () => {
+    if (isMobile) {
+      setMobileChatOpen(true)
+      // Give the Sheet a tick to mount before focusing
+      setTimeout(() => {
+        const ta = document.querySelector(
+          'textarea[placeholder*="edit"]',
+        ) as HTMLTextAreaElement | null
+        ta?.focus()
+      }, 250)
+    } else {
+      const ta = document.querySelector(
+        'textarea[placeholder*="edit"]',
+      ) as HTMLTextAreaElement | null
+      ta?.focus()
+    }
+    toast.info('Selection ready to edit', {
+      description: 'Type how you want to rewrite it, then press Send.',
+    })
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true)
@@ -144,6 +171,7 @@ export default function Home() {
           <DocEditor
             editorRef={editorRef}
             onSelectionChange={handleSelectionChange}
+            onSendToEdit={handleSendToEdit}
           />
         ) : (
           <ResizablePanelGroup direction="horizontal">
@@ -151,6 +179,7 @@ export default function Home() {
               <DocEditor
                 editorRef={editorRef}
                 onSelectionChange={handleSelectionChange}
+                onSendToEdit={handleSendToEdit}
               />
             </ResizablePanel>
             <ResizableHandle withHandle />
