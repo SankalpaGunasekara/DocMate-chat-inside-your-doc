@@ -21,6 +21,7 @@ import {
   Cpu,
   ShieldOff,
   Scissors,
+  X,
 } from 'lucide-react'
 import { useAppStore, type ChatMessage, type LlmProvider } from '@/store/app-store'
 import { markdownToDocHtml, newId } from '@/lib/markdown'
@@ -29,12 +30,33 @@ import type { DocEditorHandle, DocSelectionInfo } from './doc-editor'
 import { StylePresetSelect } from './style-preset-select'
 import { toast } from 'sonner'
 
-interface ChatPanelProps {
-  editorRef: React.MutableRefObject<DocEditorHandle | null>
-  selection: DocSelectionInfo
+export interface PendingRewrite {
+  /** The instruction text to auto-send (e.g. "Rewrite this in the Academic style.") */
+  instruction: string
 }
 
-export function ChatPanel({ editorRef, selection }: ChatPanelProps) {
+interface ChatPanelProps {
+  editorRef: React.MutableRefObject<DocEditorHandle | null>
+  /** Live selection info — tracked silently, NOT used for banner display */
+  selection: DocSelectionInfo
+  /** True only after the user explicitly invokes "Send to edit" or "Rewrite as…" */
+  pendingEdit: boolean
+  /** When set, ChatPanel auto-sends a rewrite with the given instruction */
+  pendingRewrite: PendingRewrite | null
+  /** Called after a send completes (or errors) — exits edit mode */
+  onEditComplete: () => void
+  /** Called after ChatPanel consumes the pendingRewrite trigger */
+  onPendingRewriteConsumed: () => void
+}
+
+export function ChatPanel({
+  editorRef,
+  selection,
+  pendingEdit,
+  pendingRewrite,
+  onEditComplete,
+  onPendingRewriteConsumed,
+}: ChatPanelProps) {
   const {
     messages,
     addMessage,
@@ -70,8 +92,8 @@ export function ChatPanel({ editorRef, selection }: ChatPanelProps) {
     (activeProvider === 'openrouter' || devMode)
   )
 
-  const send = async () => {
-    const text = input.trim()
+  const send = async (overridePrompt?: string) => {
+    const text = (overridePrompt ?? input).trim()
     if (!text || streaming) return
     if (!providerReady) {
       toast.error('Provider not configured', {
@@ -83,9 +105,14 @@ export function ChatPanel({ editorRef, selection }: ChatPanelProps) {
       return
     }
 
-    // Capture doc context (trimmed) and any active selection at send time
+    // Capture doc context (trimmed) and any active selection at send time.
+    // Edit mode is gated by `pendingEdit` (explicit user intent via right-click
+    // "Send to edit" or "Rewrite as…"), NOT by whether a selection happens to
+    // be live in the doc.
     const docText = editorRef.current?.getPlainText().trim().slice(0, 4000) ?? ''
-    const selText = editorRef.current?.getSelectionText() ?? ''
+    const selText = pendingEdit
+      ? (editorRef.current?.getSelectionText() ?? '')
+      : ''
     const isEditingSelection = selText.trim().length > 0
 
     const userMsg: ChatMessage = {
@@ -252,6 +279,10 @@ EMPTY INTENT: If the user's instruction doesn't make sense for the selection, re
     } finally {
       setStreaming(false)
       abortRef.current = null
+      // Exit edit mode after the send completes (success, error, or abort).
+      // This hides the "Editing selection" banner and resets the chat panel
+      // to append mode for the next send.
+      onEditComplete()
     }
   }
 
@@ -306,6 +337,23 @@ EMPTY INTENT: If the user's instruction doesn't make sense for the selection, re
   const stop = () => {
     abortRef.current?.abort()
   }
+
+  // Keep a ref to the latest `send` so the pendingRewrite effect doesn't
+  // need to depend on it (which would re-fire on every render).
+  const sendRef = useRef(send)
+  useEffect(() => {
+    sendRef.current = send
+  })
+
+  // Auto-send when pendingRewrite is set (from "Rewrite as…" right-click menu).
+  // Waits until the provider is ready and we're not already streaming.
+  useEffect(() => {
+    if (!pendingRewrite || streaming || !providerReady) return
+    const instruction = pendingRewrite.instruction
+    onPendingRewriteConsumed()
+    // Fire the send with the override prompt
+    void sendRef.current(instruction)
+  }, [pendingRewrite, streaming, providerReady, onPendingRewriteConsumed])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -385,8 +433,10 @@ EMPTY INTENT: If the user's instruction doesn't make sense for the selection, re
         </div>
       </div>
 
-      {/* Editing-selection banner — amber accent, scoped to this role only */}
-      {selection.hasSelection && (
+      {/* Editing-selection banner — only shows when the user has explicitly
+          entered edit mode via "Send to edit" or "Rewrite as…". NOT triggered
+          by merely selecting text in the doc. Has an X button to cancel. */}
+      {pendingEdit && selection.hasSelection && (
         <div className="docmate-sel-banner">
           <Scissors className="docmate-sel-banner__icon size-3.5" />
           <div className="min-w-0 flex-1">
@@ -397,6 +447,15 @@ EMPTY INTENT: If the user's instruction doesn't make sense for the selection, re
               {selection.length} chars · “{selection.text}{selection.length > 120 ? '…' : ''}”
             </div>
           </div>
+          <button
+            type="button"
+            onClick={() => onEditComplete()}
+            aria-label="Cancel edit mode"
+            title="Cancel edit mode"
+            className="ml-1 shrink-0 rounded-sm p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <X className="size-3.5" />
+          </button>
         </div>
       )}
 
@@ -451,7 +510,7 @@ EMPTY INTENT: If the user's instruction doesn't make sense for the selection, re
             placeholder={
               !providerReady
                 ? 'Open Settings to connect a provider first…'
-                : selection.hasSelection
+                : pendingEdit && selection.hasSelection
                   ? `Tell the AI how to edit the ${selection.length}-char selection…`
                   : 'Ask the assistant to write, edit, or expand the doc…'
             }
@@ -472,12 +531,12 @@ EMPTY INTENT: If the user's instruction doesn't make sense for the selection, re
             ) : (
               <Button
                 size="sm"
-                onClick={send}
+                onClick={() => send()}
                 disabled={!input.trim() || !providerReady}
                 className="h-6 rounded-md bg-accent px-2.5 font-mono text-[10px] uppercase tracking-[0.06em] text-accent-ink hover:bg-accent/90"
               >
                 <Send className="size-2.5" />
-                {selection.hasSelection ? 'Replace' : 'Send'}
+                {pendingEdit && selection.hasSelection ? 'Replace' : 'Send'}
               </Button>
             )}
           </div>

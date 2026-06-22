@@ -47,11 +47,15 @@ interface DocEditorProps {
   onSelectionChange?: (info: DocSelectionInfo) => void
   /**
    * Called when the user picks "Send to edit" from the right-click context
-   * menu. The parent (page) should focus the chat input + ensure the
-   * selection banner is showing. The selection itself stays in the doc —
-   * the chat panel reads it via editorRef.getSelectionText() at send time.
+   * menu. The parent (page) enters edit mode + focuses the chat input.
    */
   onSendToEdit?: () => void
+  /**
+   * Called when the user picks a style from "Rewrite as…" in the right-click
+   * menu. The parent (page) sets the style preset, enters edit mode, AND
+   * triggers an auto-send with a default rewrite instruction.
+   */
+  onRewriteAs?: (presetId: import('@/lib/style-presets').StylePresetId) => void
 }
 
 export interface DocSelectionInfo {
@@ -86,14 +90,13 @@ function exec(cmd: string, value?: string) {
   }
 }
 
-export function DocEditor({ editorRef, onSelectionChange, onSendToEdit }: DocEditorProps) {
+export function DocEditor({ editorRef, onSelectionChange, onSendToEdit, onRewriteAs }: DocEditorProps) {
   const editableRef = useRef<HTMLDivElement>(null)
   const titleRef = useRef<HTMLTextAreaElement>(null)
   const docHtml = useAppStore((s) => s.docHtml)
   const docTitle = useAppStore((s) => s.docTitle)
   const setDocHtml = useAppStore((s) => s.setDocHtml)
   const setDocTitle = useAppStore((s) => s.setDocTitle)
-  const setStylePreset = useAppStore((s) => s.setStylePreset)
   // Live selection state — used to enable/disable context-menu items
   const [hasLiveSelection, setHasLiveSelection] = useState(false)
   // Keep latest onSelectionChange without re-running the listener effect
@@ -464,11 +467,7 @@ export function DocEditor({ editorRef, onSelectionChange, onSendToEdit }: DocEdi
                 <ContextMenuItem
                   key={p.id}
                   onSelect={() => {
-                    setStylePreset(p.id)
-                    onSendToEdit?.()
-                    toast.success(`Style set to ${p.label}`, {
-                      description: p.hint,
-                    })
+                    onRewriteAs?.(p.id)
                   }}
                   className="flex flex-col items-start gap-0.5 rounded-sm px-2 py-1.5 focus:bg-accent focus:text-accent-foreground"
                 >
