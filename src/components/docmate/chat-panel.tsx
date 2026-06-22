@@ -285,39 +285,47 @@ Tone: tight, useful, no filler.`
 
   return (
     <div className="flex h-full flex-col bg-background">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+      {/*
+        Hallmark · chat panel header
+        Mono eyebrow "CHAT" label · cobalt status dot · count · clear button.
+        Tight 11px monospace meta, no celebratory badges.
+      */}
+      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-sm font-medium">Chat</span>
-          <Badge variant="outline" className="gap-1 text-[10px] font-normal">
+          <span className="docmate-eyebrow">Chat</span>
+          <span className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
             {streaming ? (
-              <Loader2 className="size-2.5 animate-spin" />
+              <Loader2 className="size-2.5 animate-spin text-accent" />
             ) : (
-              <span className="size-1.5 rounded-full bg-emerald-500" />
+              <span className="size-1.5 rounded-full bg-accent" />
             )}
-            {messages.length} msgs
-          </Badge>
+            <span className="tabular-nums">{messages.length}</span>
+          </span>
         </div>
         <Button
           variant="ghost"
           size="icon"
-          className="size-7"
+          className="size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary"
           onClick={() => {
             if (confirm('Clear all chat messages?')) clearMessages()
           }}
           aria-label="Clear chat"
+          title="Clear chat"
         >
-          <Trash2 className="size-3.5" />
+          <Trash2 className="size-3" />
         </Button>
       </div>
 
-      {/* Provider switcher */}
-      <div className="flex items-center gap-2 border-b px-3 py-2">
+      {/*
+        Hallmark · provider switcher
+        Compact mono-styled select, model shown as mono caption beside it.
+      */}
+      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
         <Select
           value={activeProvider}
           onValueChange={(v) => setActiveProvider(v as LlmProvider)}
         >
-          <SelectTrigger className="h-8 text-xs">
+          <SelectTrigger className="h-7 rounded-md border-border bg-background font-mono text-[11px] uppercase tracking-[0.04em]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -337,39 +345,39 @@ Tone: tight, useful, no filler.`
             )}
           </SelectContent>
         </Select>
-        <div className="truncate text-[10px] text-muted-foreground">
+        <div className="truncate font-mono text-[10px] text-muted-foreground">
           {activeConfig.model || 'no model set'}
         </div>
       </div>
 
-      {/* Editing-selection banner */}
+      {/* Editing-selection banner — amber accent, scoped to this role only */}
       {selection.hasSelection && (
-        <div className="flex items-start gap-2 border-b bg-amber-500/5 px-3 py-2">
-          <Scissors className="mt-0.5 size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+        <div className="docmate-sel-banner">
+          <Scissors className="docmate-sel-banner__icon size-3.5" />
           <div className="min-w-0 flex-1">
-            <div className="text-[11px] font-medium text-amber-700 dark:text-amber-300">
-              Editing selection · AI will replace it
+            <div className="docmate-sel-banner__title">
+              Editing selection · AI will replace
             </div>
-            <div className="truncate text-[10px] text-muted-foreground">
-              {selection.length} chars:&nbsp;
-              <span className="italic">“{selection.text}{selection.length > 120 ? '…' : ''}”</span>
+            <div className="docmate-sel-banner__preview">
+              {selection.length} chars · “{selection.text}{selection.length > 120 ? '…' : ''}”
             </div>
           </div>
         </div>
       )}
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        <div className="space-y-3 p-3">
+      <div ref={scrollRef} className="docmate-scroll flex-1 overflow-y-auto">
+        <div className="space-y-2.5 p-3">
           {messages.length === 0 && (
-            <div className="mt-8 px-4 text-center text-sm text-muted-foreground">
-              <p className="mb-2 font-medium text-foreground">Ask the assistant</p>
-              <p className="text-xs leading-relaxed">
-                Tell it what to write — headings, lists, paragraphs, code
-                blocks. When it replies, the content lands in your document with
-                formatting.
+            <div className="mt-6 px-2 text-left">
+              <p className="font-display text-sm font-semibold text-foreground">
+                Ask the assistant
               </p>
-              <div className="mt-4 grid gap-1.5 text-left">
+              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                Tell it what to write — headings, lists, paragraphs, code blocks.
+                When it replies, the content lands in your document with formatting.
+              </p>
+              <div className="mt-4 grid gap-1 text-left">
                 {[
                   'Write a 3-section product launch plan for a coffee subscription app',
                   'Summarize the following meeting notes into bullet points',
@@ -380,7 +388,7 @@ Tone: tight, useful, no filler.`
                     key={s}
                     type="button"
                     onClick={() => setInput(s)}
-                    className="rounded-md border border-border/60 bg-muted/30 px-2.5 py-1.5 text-left text-[11px] hover:bg-muted transition-colors"
+                    className="rounded-md border border-border bg-paper px-2.5 py-1.5 text-left font-mono text-[10px] leading-snug text-muted-foreground transition-colors hover:border-rule-2 hover:bg-paper-2 hover:text-ink-2"
                   >
                     {s}
                   </button>
@@ -398,8 +406,8 @@ Tone: tight, useful, no filler.`
         </div>
       </div>
 
-      {/* Input */}
-      <div className="border-t p-3">
+      {/* Input — tight-radius textarea, cobalt accent on Send */}
+      <div className="border-t border-border p-3">
         <div className="relative">
           <Textarea
             value={input}
@@ -414,11 +422,16 @@ Tone: tight, useful, no filler.`
             }
             rows={3}
             disabled={!providerReady && !streaming}
-            className="min-h-[72px] resize-none pr-28 text-sm"
+            className="min-h-[72px] resize-none rounded-md border-border bg-paper pr-24 font-sans text-[13px] leading-relaxed placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-accent/30"
           />
           <div className="absolute bottom-2 right-2 flex items-center gap-1">
             {streaming ? (
-              <Button size="sm" variant="secondary" onClick={stop} className="h-7 gap-1 text-xs">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={stop}
+                className="h-6 rounded-md px-2.5 font-mono text-[10px] uppercase tracking-[0.06em]"
+              >
                 Stop
               </Button>
             ) : (
@@ -426,17 +439,17 @@ Tone: tight, useful, no filler.`
                 size="sm"
                 onClick={send}
                 disabled={!input.trim() || !providerReady}
-                className="h-7 gap-1 text-xs"
+                className="h-6 rounded-md bg-accent px-2.5 font-mono text-[10px] uppercase tracking-[0.06em] text-accent-ink hover:bg-accent/90"
               >
-                <Send className="size-3" />
+                <Send className="size-2.5" />
                 {selection.hasSelection ? 'Replace' : 'Send'}
               </Button>
             )}
           </div>
         </div>
-        <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground">
-          <span>Enter to send · Shift+Enter for newline</span>
-          <span>Auto-insert: {autoInsert ? 'on' : 'off'}</span>
+        <div className="mt-1.5 flex items-center justify-between font-mono text-[9px] uppercase tracking-[0.06em] text-muted-foreground">
+          <span>↵ send · ⇧↵ newline</span>
+          <span>auto-insert {autoInsert ? 'on' : 'off'}</span>
         </div>
       </div>
     </div>
@@ -451,43 +464,46 @@ function MessageBubble({
   onInsert: () => void
 }) {
   const isUser = msg.role === 'user'
+  const bubbleClass = isUser
+    ? 'docmate-bubble-user'
+    : msg.error
+      ? 'docmate-bubble-error'
+      : 'docmate-bubble-ai'
+
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div
-        className={`group relative max-w-[92%] rounded-lg px-3 py-2 text-sm ${
-          isUser
-            ? 'bg-primary text-primary-foreground'
-            : msg.error
-              ? 'bg-destructive/10 text-destructive border border-destructive/30'
-              : 'bg-muted'
-        }`}
+        className={`group relative max-w-[92%] rounded-md px-3 py-2 text-[13px] leading-relaxed ${bubbleClass}`}
       >
-        <div className="whitespace-pre-wrap break-words leading-relaxed">
+        <div className="whitespace-pre-wrap break-words">
           {msg.content || (msg.streaming ? '…' : '')}
           {msg.streaming && (
-            <span className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-current align-middle" />
+            <span
+              className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-accent align-middle"
+              aria-hidden
+            />
           )}
         </div>
         {!isUser && !msg.streaming && msg.content && !msg.error && (
-          <div className="mt-1.5 flex items-center gap-1 border-t border-border/40 pt-1.5 opacity-100">
+          <div className="mt-1.5 flex items-center gap-1 border-t border-rule pt-1.5">
             {msg.inserted ? (
-              <Badge variant="outline" className="gap-1 text-[10px] font-normal text-emerald-600">
+              <span className="inline-flex items-center gap-1 font-mono text-[9px] uppercase tracking-[0.06em] text-accent">
                 <Check className="size-2.5" /> Inserted
-              </Badge>
+              </span>
             ) : (
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={onInsert}
-                className="h-6 gap-1 px-2 text-[10px]"
+                className="h-5 gap-1 rounded px-1.5 font-mono text-[9px] uppercase tracking-[0.06em] text-muted-foreground hover:bg-paper-3 hover:text-accent"
               >
-                <FilePlus2 className="size-3" /> Insert into doc
+                <FilePlus2 className="size-2.5" /> Insert into doc
               </Button>
             )}
           </div>
         )}
         {msg.error && (
-          <div className="mt-1 flex items-center gap-1 text-[10px] opacity-80">
+          <div className="mt-1 flex items-center gap-1 font-mono text-[9px] uppercase tracking-[0.06em] opacity-80">
             <AlertTriangle className="size-2.5" /> Error
           </div>
         )}

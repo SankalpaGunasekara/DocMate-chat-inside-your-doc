@@ -309,14 +309,14 @@ export function DocEditor({ editorRef, onSelectionChange }: DocEditorProps) {
           type="button"
           variant="ghost"
           size="icon"
-          className="size-8"
+          className="size-7 rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
           onClick={props.onClick}
           aria-label={props.title}
         >
           {props.children}
         </Button>
       </TooltipTrigger>
-      <TooltipContent side="bottom" className="text-xs">
+      <TooltipContent side="bottom" className="font-mono text-[10px] uppercase tracking-[0.06em]">
         {props.title}
       </TooltipContent>
     </Tooltip>
@@ -324,56 +324,65 @@ export function DocEditor({ editorRef, onSelectionChange }: DocEditorProps) {
 
   return (
     <div className="flex h-full flex-col bg-background">
-      {/* Format toolbar */}
+      {/*
+        Hallmark · format toolbar
+        Tight 7px buttons, hairline border-bottom, no backdrop blur.
+        Mono eyebrow labels on hover (typographic, not decorative).
+      */}
       <TooltipProvider delayDuration={200}>
-        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-0.5 border-b bg-background/95 px-2 py-1.5 backdrop-blur">
-          {toolBtn({ title: 'Heading 1', onClick: () => exec('formatBlock', '<h1>') , children: <Heading1 className="size-4" /> })}
-          {toolBtn({ title: 'Heading 2', onClick: () => exec('formatBlock', '<h2>'), children: <Heading2 className="size-4" /> })}
-          {toolBtn({ title: 'Heading 3', onClick: () => exec('formatBlock', '<h3>'), children: <Heading3 className="size-4" /> })}
-          <Separator orientation="vertical" className="mx-1 h-6" />
-          {toolBtn({ title: 'Bold (Ctrl+B)', onClick: () => exec('bold'), children: <Bold className="size-4" /> })}
-          {toolBtn({ title: 'Italic (Ctrl+I)', onClick: () => exec('italic'), children: <Italic className="size-4" /> })}
-          {toolBtn({ title: 'Underline (Ctrl+U)', onClick: () => exec('underline'), children: <Underline className="size-4" /> })}
-          {toolBtn({ title: 'Strikethrough', onClick: () => exec('strikeThrough'), children: <Strikethrough className="size-4" /> })}
-          {toolBtn({ title: 'Inline code', onClick: () => exec('formatBlock', '<pre>'), children: <Code2 className="size-4" /> })}
-          <Separator orientation="vertical" className="mx-1 h-6" />
-          {toolBtn({ title: 'Bullet list', onClick: () => exec('insertUnorderedList'), children: <List className="size-4" /> })}
-          {toolBtn({ title: 'Numbered list', onClick: () => exec('insertOrderedList'), children: <ListOrdered className="size-4" /> })}
-          {toolBtn({ title: 'Quote', onClick: () => exec('formatBlock', '<blockquote>'), children: <Quote className="size-4" /> })}
-          <Separator orientation="vertical" className="mx-1 h-6" />
-          {toolBtn({ title: 'Align left', onClick: () => exec('justifyLeft'), children: <AlignLeft className="size-4" /> })}
-          {toolBtn({ title: 'Align center', onClick: () => exec('justifyCenter'), children: <AlignCenter className="size-4" /> })}
-          {toolBtn({ title: 'Align right', onClick: () => exec('justifyRight'), children: <AlignRight className="size-4" /> })}
-          {toolBtn({ title: 'Justify', onClick: () => exec('justifyFull'), children: <AlignJustify className="size-4" /> })}
-          <Separator orientation="vertical" className="mx-1 h-6" />
+        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-0.5 border-b border-border bg-background px-2 py-1 sm:px-3">
+          {toolBtn({ title: 'Heading 1', onClick: () => exec('formatBlock', '<h1>') , children: <Heading1 className="size-3.5" /> })}
+          {toolBtn({ title: 'Heading 2', onClick: () => exec('formatBlock', '<h2>'), children: <Heading2 className="size-3.5" /> })}
+          {toolBtn({ title: 'Heading 3', onClick: () => exec('formatBlock', '<h3>'), children: <Heading3 className="size-3.5" /> })}
+          <Separator orientation="vertical" className="mx-1 h-4 bg-border" />
+          {toolBtn({ title: 'Bold (Ctrl+B)', onClick: () => exec('bold'), children: <Bold className="size-3.5" /> })}
+          {toolBtn({ title: 'Italic (Ctrl+I)', onClick: () => exec('italic'), children: <Italic className="size-3.5" /> })}
+          {toolBtn({ title: 'Underline (Ctrl+U)', onClick: () => exec('underline'), children: <Underline className="size-3.5" /> })}
+          {toolBtn({ title: 'Strikethrough', onClick: () => exec('strikeThrough'), children: <Strikethrough className="size-3.5" /> })}
+          {toolBtn({ title: 'Inline code', onClick: () => exec('formatBlock', '<pre>'), children: <Code2 className="size-3.5" /> })}
+          <Separator orientation="vertical" className="mx-1 h-4 bg-border" />
+          {toolBtn({ title: 'Bullet list', onClick: () => exec('insertUnorderedList'), children: <List className="size-3.5" /> })}
+          {toolBtn({ title: 'Numbered list', onClick: () => exec('insertOrderedList'), children: <ListOrdered className="size-3.5" /> })}
+          {toolBtn({ title: 'Quote', onClick: () => exec('formatBlock', '<blockquote>'), children: <Quote className="size-3.5" /> })}
+          <Separator orientation="vertical" className="mx-1 h-4 bg-border" />
+          {toolBtn({ title: 'Align left', onClick: () => exec('justifyLeft'), children: <AlignLeft className="size-3.5" /> })}
+          {toolBtn({ title: 'Align center', onClick: () => exec('justifyCenter'), children: <AlignCenter className="size-3.5" /> })}
+          {toolBtn({ title: 'Align right', onClick: () => exec('justifyRight'), children: <AlignRight className="size-3.5" /> })}
+          {toolBtn({ title: 'Justify', onClick: () => exec('justifyFull'), children: <AlignJustify className="size-3.5" /> })}
+          <Separator orientation="vertical" className="mx-1 h-4 bg-border" />
           {toolBtn({
             title: 'Clear formatting',
             onClick: () => {
               exec('removeFormat')
               exec('formatBlock', '<p>')
             },
-            children: <Eraser className="size-4" />,
+            children: <Eraser className="size-3.5" />,
           })}
         </div>
       </TooltipProvider>
 
-      {/* Scrollable document surface */}
+      {/*
+        Hallmark · document surface
+        Off-page feel: the doc sits in a slightly elevated paper-2 background
+        with hairline border, max-width 720px (~65ch measure), generous padding.
+      */}
       <div
         data-doc-scroller
-        className="flex-1 overflow-y-auto"
-        style={{ scrollBehavior: 'smooth' }}
+        className="docmate-scroll flex-1 overflow-y-auto"
+        style={{ scrollBehavior: 'smooth', background: 'var(--color-paper)' }}
       >
-        <div className="mx-auto my-8 max-w-3xl px-8">
-          {/* Title */}
+        <div className="mx-auto max-w-[720px] px-6 py-10 sm:px-10 sm:py-14">
+          {/* Title — Space Grotesk 600, tight tracking */}
           <textarea
             ref={titleRef}
             value={docTitle}
             onChange={(e) => setDocTitle(e.target.value)}
             placeholder="Untitled document"
             rows={1}
-            className="w-full resize-none border-none bg-transparent text-4xl font-bold tracking-tight outline-none placeholder:text-muted-foreground/40"
+            className="w-full resize-none border-none bg-transparent font-display text-3xl font-semibold tracking-[-0.025em] text-foreground outline-none placeholder:text-muted-foreground/50 sm:text-4xl"
+            style={{ fontFamily: 'var(--font-display), ui-sans-serif, system-ui, sans-serif' }}
           />
-          <div className="mb-6 mt-2 h-px bg-border" />
+          <div className="mb-8 mt-3 h-px bg-border" />
 
           {/* Editable doc body */}
           <div

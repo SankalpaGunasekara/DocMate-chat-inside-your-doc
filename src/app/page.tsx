@@ -14,7 +14,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
-import { MessageSquare, Moon, Sun, FileText, RotateCcw } from 'lucide-react'
+import { MessageSquare, Moon, Sun, RotateCcw, Settings2, Download } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { DocEditor, type DocEditorHandle, type DocSelectionInfo } from '@/components/docmate/doc-editor'
 import { ChatPanel } from '@/components/docmate/chat-panel'
@@ -50,20 +50,28 @@ export default function Home() {
 
   return (
     <div className="flex h-dvh flex-col bg-background text-foreground">
-      {/* Top bar */}
-      <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b px-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <FileText className="size-4 shrink-0 text-muted-foreground" />
-          <span className="truncate text-sm font-semibold">DocMate</span>
-          <span className="hidden text-[10px] text-muted-foreground sm:inline">
-            · chat inside your doc
+      {/*
+        Hallmark · nav: N9 edge-aligned minimal
+        Wordmark left with a tiny cobalt dot (carried by .docmate-wordmark).
+        Action cluster right: reset · theme · settings · export · (mobile: chat).
+        Hairline border-bottom only. No backdrop blur, no shadow — earned restraint.
+      */}
+      <header className="flex h-11 shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-3 sm:px-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="docmate-wordmark">DocMate</span>
+          <span
+            className="hidden sm:inline-block h-3 w-px bg-border"
+            aria-hidden
+          />
+          <span className="hidden font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground sm:inline">
+            chat&nbsp;inside&nbsp;your&nbsp;doc
           </span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <Button
             variant="ghost"
             size="icon"
-            className="size-8"
+            className="size-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary"
             onClick={() => {
               if (
                 confirm(
@@ -79,6 +87,7 @@ export default function Home() {
               }
             }}
             aria-label="Reset document"
+            title="Reset document"
           >
             <RotateCcw className="size-3.5" />
           </Button>
@@ -86,9 +95,10 @@ export default function Home() {
             <Button
               variant="ghost"
               size="icon"
-              className="size-8"
+              className="size-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary"
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
               aria-label="Toggle theme"
+              title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
             >
               {theme === 'dark' ? (
                 <Sun className="size-3.5" />
@@ -99,22 +109,22 @@ export default function Home() {
           )}
           <SettingsDialog />
           <ExportMenu />
-          {/* Mobile chat trigger */}
           {isMobile && (
             <Sheet open={mobileChatOpen} onOpenChange={setMobileChatOpen}>
               <SheetTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-8"
+                  className="size-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary"
                   aria-label="Open chat"
+                  title="Open chat"
                 >
                   <MessageSquare className="size-3.5" />
                 </Button>
               </SheetTrigger>
               <SheetContent
                 side="right"
-                className="w-full sm:max-w-md p-0 flex flex-col"
+                className="w-full sm:max-w-md p-0 flex flex-col border-border"
               >
                 <SheetHeader className="sr-only">
                   <SheetTitle>Chat</SheetTitle>
@@ -131,13 +141,11 @@ export default function Home() {
       {/* Main: only ONE DocEditor + ONE ChatPanel mounted at a time */}
       <main className="min-h-0 flex-1">
         {isMobile ? (
-          // Mobile: doc only (chat is in the Sheet above)
           <DocEditor
             editorRef={editorRef}
             onSelectionChange={handleSelectionChange}
           />
         ) : (
-          // Desktop: resizable split
           <ResizablePanelGroup direction="horizontal">
             <ResizablePanel defaultSize={68} minSize={40}>
               <DocEditor
