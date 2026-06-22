@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
+import { BubbleMenu } from '@tiptap/react/menus'
 import StarterKit from '@tiptap/starter-kit'
 import { TextAlign } from '@tiptap/extension-text-align'
 import { TextStyle } from '@tiptap/extension-text-style'
@@ -63,6 +64,14 @@ import {
   Highlighter,
   Baseline,
   Type,
+  Plus,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  Rows3,
+  Columns3,
 } from 'lucide-react'
 
 /**
@@ -515,6 +524,105 @@ export const WysiwygEditor = forwardRef<WysiwygEditorHandle, WysiwygEditorProps>
 
                 {/* Editor */}
                 <EditorContent editor={editor} />
+
+                {/*
+                  Floating table toolbar — appears when the cursor is inside
+                  a table cell. Provides Word-like table management:
+                  add/remove rows & columns, toggle header, delete table.
+                */}
+                <BubbleMenu
+                  editor={editor}
+                  shouldShow={({ editor }) => editor.isActive('table')}
+                  className="flex items-center gap-0.5 rounded-md border border-border bg-popover p-1 shadow-md"
+                  tippyOptions={{ duration: 100, placement: 'top' }}
+                >
+                  {/* Row controls */}
+                  <button
+                    type="button"
+                    onClick={() => editor.chain().focus().addRowBefore().run()}
+                    title="Add row above"
+                    className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  >
+                    <Plus className="size-3" />
+                    <ArrowUp className="size-2.5 -ml-1" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => editor.chain().focus().addRowAfter().run()}
+                    title="Add row below"
+                    className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  >
+                    <Plus className="size-3" />
+                    <ArrowDown className="size-2.5 -ml-1" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => editor.chain().focus().deleteRow().run()}
+                    title="Delete row"
+                    className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="size-3" />
+                    <ArrowUp className="size-2.5 -ml-1" />
+                  </button>
+                  <div className="mx-0.5 h-4 w-px bg-border" />
+                  {/* Column controls */}
+                  <button
+                    type="button"
+                    onClick={() => editor.chain().focus().addColumnBefore().run()}
+                    title="Add column left"
+                    className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  >
+                    <Plus className="size-3" />
+                    <ArrowLeft className="size-2.5 -ml-1" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => editor.chain().focus().addColumnAfter().run()}
+                    title="Add column right"
+                    className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  >
+                    <Plus className="size-3" />
+                    <ArrowRight className="size-2.5 -ml-1" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => editor.chain().focus().deleteColumn().run()}
+                    title="Delete column"
+                    className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="size-3" />
+                    <ArrowLeft className="size-2.5 -ml-1" />
+                  </button>
+                  <div className="mx-0.5 h-4 w-px bg-border" />
+                  {/* Header toggle */}
+                  <button
+                    type="button"
+                    onClick={() => editor.chain().focus().toggleHeaderRow().run()}
+                    title="Toggle header row"
+                    className={`flex size-6 items-center justify-center rounded ${
+                      editor.isActive('tableHeader')
+                        ? 'bg-accent-dim text-accent'
+                        : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                    }`}
+                  >
+                    <Rows3 className="size-3" />
+                  </button>
+                  <div className="mx-0.5 h-4 w-px bg-border" />
+                  {/* Delete entire table */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm('Delete the entire table?')) {
+                        editor.chain().focus().deleteTable().run()
+                      }
+                    }}
+                    title="Delete table"
+                    className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <TableIcon className="size-3" />
+                    <span className="sr-only">Delete table</span>
+                  </button>
+                </BubbleMenu>
               </div>
             </div>
           </ContextMenuTrigger>
@@ -556,6 +664,78 @@ export const WysiwygEditor = forwardRef<WysiwygEditorHandle, WysiwygEditorProps>
             </ContextMenuSub>
 
             <ContextMenuSeparator className="my-1 bg-border" />
+
+            {/* Table controls — only show when cursor is in a table */}
+            {editor.isActive('table') && (
+              <>
+                <ContextMenuSub>
+                  <ContextMenuSubTrigger
+                    className="gap-2 rounded-sm px-2 py-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-foreground focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
+                  >
+                    <TableIcon className="size-3.5 text-accent" />
+                    Table…
+                  </ContextMenuSubTrigger>
+                  <ContextMenuSubContent className="w-52 rounded-md border-border bg-popover p-1">
+                    <ContextMenuItem
+                      onSelect={() => editor.chain().focus().addRowBefore().run()}
+                      className="gap-2 rounded-sm px-2 py-1.5 text-[12px] text-foreground focus:bg-accent focus:text-accent-foreground"
+                    >
+                      <ArrowUp className="size-3.5" /> Add row above
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      onSelect={() => editor.chain().focus().addRowAfter().run()}
+                      className="gap-2 rounded-sm px-2 py-1.5 text-[12px] text-foreground focus:bg-accent focus:text-accent-foreground"
+                    >
+                      <ArrowDown className="size-3.5" /> Add row below
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      onSelect={() => editor.chain().focus().deleteRow().run()}
+                      className="gap-2 rounded-sm px-2 py-1.5 text-[12px] text-foreground focus:bg-accent focus:text-accent-foreground"
+                    >
+                      <Trash2 className="size-3.5" /> Delete row
+                    </ContextMenuItem>
+                    <ContextMenuSeparator className="my-1 bg-border" />
+                    <ContextMenuItem
+                      onSelect={() => editor.chain().focus().addColumnBefore().run()}
+                      className="gap-2 rounded-sm px-2 py-1.5 text-[12px] text-foreground focus:bg-accent focus:text-accent-foreground"
+                    >
+                      <ArrowLeft className="size-3.5" /> Add column left
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      onSelect={() => editor.chain().focus().addColumnAfter().run()}
+                      className="gap-2 rounded-sm px-2 py-1.5 text-[12px] text-foreground focus:bg-accent focus:text-accent-foreground"
+                    >
+                      <ArrowRight className="size-3.5" /> Add column right
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      onSelect={() => editor.chain().focus().deleteColumn().run()}
+                      className="gap-2 rounded-sm px-2 py-1.5 text-[12px] text-foreground focus:bg-accent focus:text-accent-foreground"
+                    >
+                      <Trash2 className="size-3.5" /> Delete column
+                    </ContextMenuItem>
+                    <ContextMenuSeparator className="my-1 bg-border" />
+                    <ContextMenuItem
+                      onSelect={() => editor.chain().focus().toggleHeaderRow().run()}
+                      className="gap-2 rounded-sm px-2 py-1.5 text-[12px] text-foreground focus:bg-accent focus:text-accent-foreground"
+                    >
+                      <Rows3 className="size-3.5" /> Toggle header row
+                    </ContextMenuItem>
+                    <ContextMenuSeparator className="my-1 bg-border" />
+                    <ContextMenuItem
+                      onSelect={() => {
+                        if (confirm('Delete the entire table?')) {
+                          editor.chain().focus().deleteTable().run()
+                        }
+                      }}
+                      className="gap-2 rounded-sm px-2 py-1.5 text-[12px] text-destructive focus:bg-destructive/10 focus:text-destructive"
+                    >
+                      <Trash2 className="size-3.5" /> Delete table
+                    </ContextMenuItem>
+                  </ContextMenuSubContent>
+                </ContextMenuSub>
+                <ContextMenuSeparator className="my-1 bg-border" />
+              </>
+            )}
 
             <ContextMenuItem
               onSelect={() => document.execCommand('cut')}
