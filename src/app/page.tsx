@@ -42,6 +42,10 @@ export default function Home() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true)
+    // Manually rehydrate the zustand store from localStorage AFTER React has
+    // mounted & hydrated. This prevents SSR/client mismatches because the
+    // store uses `skipHydration: true`.
+    void useAppStore.persist.rehydrate()
   }, [])
 
   return (

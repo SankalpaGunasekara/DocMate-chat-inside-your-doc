@@ -109,6 +109,13 @@ export const useAppStore = create<AppState>()(
     {
       name: 'docmate-store',
       storage: createJSONStorage(() => localStorage),
+      // CRITICAL: don't hydrate synchronously on the client. If we do, the
+      // first client render uses persisted values while the SSR HTML has the
+      // defaults — causing React hydration mismatches on every store-backed
+      // field (docTitle, activeProvider, devMode, autoInsert, model, …).
+      // Instead, we skip auto-hydration and call `rehydrate()` manually from
+      // a top-level useEffect in the page.
+      skipHydration: true,
       partialize: (s) => ({
         activeProvider: s.activeProvider,
         openrouter: s.openrouter,
